@@ -3,6 +3,7 @@ from pathlib import Path
 from typing import Dict, List, Optional, TextIO, Tuple
 
 import os
+import requests
 import torch
 from PIL import Image, UnidentifiedImageError
 from torch import Tensor
@@ -42,7 +43,7 @@ def parse_args():
                             "works with RAM."
                         ))
     # data
-    parser.add_argument("--image-path",
+    parser.add_argument("--record-path",
                         type=str,
                         # choices=(
                         #     "openimages_common_214",
@@ -302,6 +303,50 @@ def print_write(f: TextIO, s: str):
     f.write(s + "\n")
 
 
+def _save_tags(record_path: str, vehicle_id: str, tags: list):
+    json_payload = {
+        'record_path': record_path,
+        'vehicle_id': vehicle_id,
+        'frame_tags': tags
+    }
+    print(f'json_payload: {json_payload}')
+    response = requests.post(
+        url="http://ram-tag-index-service-dev.autra.tech/write",
+        json=json_payload,
+        timeout=3
+    )
+    json_obj = response.json()
+    response.close()
+    print(f'json_obj: {json_obj}')
+
+
+def _generate_tags(
+        img_list: List[str],
+        tags: List[List[str]],
+        img_root: str):
+    img2time = {}
+    with open(os.path.join(img_root, 'timestamps'), 'r', encoding="utf-8") as f:
+        for line in f.readlines():
+            tokens = line.split(' ')
+            img2time[tokens[0]] = float(tokens[1])
+
+    format_tags = []
+    for img_path, tag in zip(img_list, tags):
+        # should be relative to img_root to match the gt file.
+        paths = img_path.split('/')
+        img_name = paths[-1].split('.')[0]
+        if img_name in img2time:
+            format_tags.append({'timestamp': img2time[img_name], 'tags': tag})
+    return format_tags
+
+
+def _format_img_path(record_path: str):
+    img_path = os.path.join(record_path, '_apollo_sensor_camera_upmiddle_right_60h_image_compressed')
+    record_name = record_path.split('/')[-1]
+    vehicle_id = record_name.split('_')[0]
+    return vehicle_id, img_path
+
+
 if __name__ == "__main__":
     args = parse_args()
 
@@ -316,16 +361,19 @@ if __name__ == "__main__":
         print_write(f, "****************")
         for key in (
             "model_type", "backbone", "checkpoint", "open_set",
-            "image_path", "input_size",
+            "record_path", "input_size",
             "threshold", "threshold_file",
             "output_dir", "batch_size", "num_workers"
         ):
             print_write(f, f"{key}: {getattr(args, key)}")
         print_write(f, "****************")
 
+
+
     # prepare data
+    vehicle_id, img_path = _format_img_path(args.record_path)
     loader, info = load_dataset(
-        img_path=args.image_path,
+        img_path=img_path,
         input_size=args.input_size,
         batch_size=args.batch_size,
         num_workers=args.num_workers
@@ -400,6 +448,8 @@ if __name__ == "__main__":
 
     # generate result file
     gen_pred_file(imglist, pred_tags, img_path, pred_file)
+    format_tags = _generate_tags(imglist, pred_tags, img_path)
+    _save_tags(args.record_path, vehicle_id, format_tags)
 
     # evaluate and record
     # mAP, APs = get_mAP(logits.numpy(), annot_file, taglist)
