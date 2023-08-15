@@ -315,32 +315,27 @@ if __name__ == "__main__":
         class_idxs=class_idxs,
         num_classes=len(class_idxs)
     )
+    # load model
+    model = load_ram(
+        backbone=args.backbone,
+        checkpoint=args.checkpoint,
+        input_size=args.input_size,
+        taglist=tag_list,
+        open_set=args.open_set,
+        class_idxs=class_idxs
+    )
 
     # inference
-    if Path(logit_file).is_file():
-        logits = torch.load(logit_file)
-    else:
-        # load model
-        model = load_ram(
-            backbone=args.backbone,
-            checkpoint=args.checkpoint,
-            input_size=args.input_size,
-            taglist=tag_list,
-            open_set=args.open_set,
-            class_idxs=class_idxs
-        )
+    logits = torch.empty(len(imglist), len(class_idxs))
+    pos = 0
+    for imgs in tqdm(loader, desc="inference"):
+        out = forward_ram(model, imgs)
+        bs = imgs.shape[0]
+        logits[pos:pos+bs, :] = out.cpu()
+        pos += bs
 
-        # inference
-        logits = torch.empty(len(imglist), len(class_idxs))
-        pos = 0
-        for imgs in tqdm(loader, desc="inference"):
-            out = forward_ram(model, imgs)
-            bs = imgs.shape[0]
-            logits[pos:pos+bs, :] = out.cpu()
-            pos += bs
-
-        # save logits, making threshold-tuning super fast
-        torch.save(logits, logit_file)
+    # save logits, making threshold-tuning super fast
+    torch.save(logits, logit_file)
 
     # filter with thresholds
     pred_tags = []
