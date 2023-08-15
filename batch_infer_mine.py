@@ -14,7 +14,7 @@ from tqdm import tqdm
 
 from ram import get_transform
 from ram.models import ram, tag2text
-from ram.utils import build_openset_label_embedding, get_mAP, get_PR
+from ram.utils import build_openset_label_embedding
 
 device = "cuda" if torch.cuda.is_available() else "cpu"
 
@@ -22,10 +22,6 @@ device = "cuda" if torch.cuda.is_available() else "cpu"
 def parse_args():
     parser = ArgumentParser()
     # model
-    parser.add_argument("--model-type",
-                        type=str,
-                        choices=("ram", "tag2text"),
-                        required=True)
     parser.add_argument("--checkpoint",
                         type=str,
                         required=True)
@@ -45,14 +41,14 @@ def parse_args():
     # data
     parser.add_argument("--record-path",
                         type=str,
-                        # choices=(
-                        #     "openimages_common_214",
-                        #     "openimages_rare_200"
-                        # ),
                         required=True)
     parser.add_argument("--input-size",
                         type=int,
                         default=384)
+    parser.add_argument("--save-tags",
+                        type=bool,
+                        default=True,
+                        help="save RAM tags to database.")
     # threshold
     group = parser.add_mutually_exclusive_group()
     group.add_argument("--threshold",
@@ -84,12 +80,8 @@ def parse_args():
     args = parser.parse_args()
 
     # post process and validity check
-    args.model_type = args.model_type.lower()
-
-    assert not (args.model_type == "tag2text" and args.open_set)
-
     if args.backbone is None:
-        args.backbone = "swin_l" if args.model_type == "ram" else "swin_b"
+        args.backbone = "swin_l"
 
     return args
 
@@ -100,19 +92,6 @@ def load_dataset(
     batch_size: int,
     num_workers: int
 ) -> Tuple[DataLoader, Dict]:
-    # dataset_root = str(Path(__file__).resolve().parent / "datasets" / dataset)
-    # Label system of tag2text contains duplicate tag texts, like
-    # "train" (noun) and "train" (verb). Therefore, for tag2text, we use
-    # `tagid` instead of `tag`.
-    # if model_type == "ram":
-    #     tag_file = dataset_root + f"/{dataset}_ram_taglist.txt"
-    #     annot_file = dataset_root + f"/{dataset}_{model_type}_annots.txt"
-    # else:
-    #     tag_file = dataset_root + f"/{dataset}_tag2text_tagidlist.txt"
-    #     annot_file = dataset_root + f"/{dataset}_{model_type}_idannots.txt"
-    #
-    # with open(tag_file, "r", encoding="utf-8") as f:
-    #     taglist = [line.strip() for line in f]
     imglist = []
     for filename in os.listdir(img_path):
         filepath = os.path.join(img_path, filename)
@@ -149,28 +128,9 @@ def load_dataset(
     }
     return loader, info
 
-
-def get_class_idxs(
-    model_type: str,
-    open_set: bool,
-    taglist: List[str]
-) -> Optional[List[int]]:
-    """Get indices of required categories in the label system."""
-    if model_type == "ram":
-        if not open_set:
-            model_taglist_file = "ram/data/ram_tag_list.txt"
-            with open(model_taglist_file, "r", encoding="utf-8") as f:
-                model_taglist = [line.strip() for line in f]
-            return [model_taglist.index(tag) for tag in taglist]
-        else:
-            return None
-    else:  # for tag2text, we directly use tagid instead of text-form of tag.
-        # here tagid equals to tag index.
-        return [int(tag) for tag in taglist]
-
-def get_class_indices(
+def get_tag_list(
     open_set: bool
-) -> Optional[List[int]]:
+) -> Optional[List[str]]:
     """Get indices of required categories in the label system."""
     if not open_set:
         model_taglist_file = "ram/data/ram_tag_list.txt"
@@ -184,25 +144,21 @@ def get_class_indices(
 def load_thresholds(
     threshold: Optional[float],
     threshold_file: Optional[str],
-    model_type: str,
     open_set: bool,
     class_idxs: List[int],
     num_classes: int,
 ) -> List[float]:
     """Decide what threshold(s) to use."""
     if not threshold_file and not threshold:  # use default
-        if model_type == "ram":
-            if not open_set:  # use class-wise tuned thresholds
-                ram_threshold_file = "ram/data/ram_tag_list_threshold.txt"
-                with open(ram_threshold_file, "r", encoding="utf-8") as f:
-                    idx2thre = {
-                        idx: float(line.strip()) for idx, line in enumerate(f)
-                    }
-                    return [idx2thre[idx] for idx in class_idxs]
-            else:
-                return [0.5] * num_classes
+        if not open_set:  # use class-wise tuned thresholds
+            ram_threshold_file = "ram/data/ram_tag_list_threshold.txt"
+            with open(ram_threshold_file, "r", encoding="utf-8") as f:
+                idx2thre = {
+                    idx: float(line.strip()) for idx, line in enumerate(f)
+                }
+                return [idx2thre[idx] for idx in class_idxs]
         else:
-            return [0.68] * num_classes
+            return [0.5] * num_classes
     elif threshold_file:
         with open(threshold_file, "r", encoding="utf-8") as f:
             thresholds = [float(line.strip()) for line in f]
@@ -247,19 +203,6 @@ def load_ram(
     return model.to(device).eval()
 
 
-def load_tag2text(
-    backbone: str,
-    checkpoint: str,
-    input_size: int
-) -> Module:
-    model = tag2text(
-        pretrained=checkpoint,
-        image_size=input_size,
-        vit=backbone
-    )
-    return model.to(device).eval()
-
-
 @torch.no_grad()
 def forward_ram(model: Module, imgs: Tensor) -> Tensor:
     image_embeds = model.image_proj(model.visual_encoder(imgs.to(device)))
@@ -275,27 +218,6 @@ def forward_ram(model: Module, imgs: Tensor) -> Tensor:
         mode='tagging',
     )
     return sigmoid(model.fc(tagging_embed).squeeze(-1))
-
-
-@torch.no_grad()
-def forward_tag2text(
-    model: Module,
-    class_idxs: List[int],
-    imgs: Tensor
-) -> Tensor:
-    image_embeds = model.visual_encoder(imgs.to(device))
-    image_atts = torch.ones(
-        image_embeds.size()[:-1], dtype=torch.long).to(device)
-    label_embed = model.label_embed.weight.unsqueeze(0)\
-        .repeat(imgs.shape[0], 1, 1)
-    tagging_embed, _ = model.tagging_head(
-        encoder_embeds=label_embed,
-        encoder_hidden_states=image_embeds,
-        encoder_attention_mask=image_atts,
-        return_dict=False,
-        mode='tagging',
-    )
-    return sigmoid(model.fc(tagging_embed))[:, class_idxs]
 
 
 def print_write(f: TextIO, s: str):
@@ -360,7 +282,7 @@ if __name__ == "__main__":
     with open(summary_file, "w", encoding="utf-8") as f:
         print_write(f, "****************")
         for key in (
-            "model_type", "backbone", "checkpoint", "open_set",
+            "backbone", "checkpoint", "open_set",
             "record_path", "input_size",
             "threshold", "threshold_file",
             "output_dir", "batch_size", "num_workers"
@@ -380,22 +302,14 @@ if __name__ == "__main__":
     )
     imglist, img_path = info["imglist"], info["img_path"]
 
-    # get class idxs
-    # class_idxs = get_class_idxs(
-    #     model_type=args.model_type,
-    #     open_set=args.open_set,
-    #     taglist=taglist
-    # )
-
     # inference all tags
-    taglist = get_class_indices(args.open_set)
-    class_idxs = range(len(taglist))
+    tag_list = get_tag_list(args.open_set)
+    class_idxs = range(len(tag_list))
 
     # set up threshold(s)
     thresholds = load_thresholds(
         threshold=args.threshold,
         threshold_file=args.threshold_file,
-        model_type=args.model_type,
         open_set=args.open_set,
         class_idxs=class_idxs,
         num_classes=len(class_idxs)
@@ -404,34 +318,22 @@ if __name__ == "__main__":
     # inference
     if Path(logit_file).is_file():
         logits = torch.load(logit_file)
-
     else:
-
         # load model
-        if args.model_type == "ram":
-            model = load_ram(
-                backbone=args.backbone,
-                checkpoint=args.checkpoint,
-                input_size=args.input_size,
-                taglist=taglist,
-                open_set=args.open_set,
-                class_idxs=class_idxs
-            )
-        else:
-            model = load_tag2text(
-                backbone=args.backbone,
-                checkpoint=args.checkpoint,
-                input_size=args.input_size
-            )
+        model = load_ram(
+            backbone=args.backbone,
+            checkpoint=args.checkpoint,
+            input_size=args.input_size,
+            taglist=tag_list,
+            open_set=args.open_set,
+            class_idxs=class_idxs
+        )
 
         # inference
         logits = torch.empty(len(imglist), len(class_idxs))
         pos = 0
         for imgs in tqdm(loader, desc="inference"):
-            if args.model_type == "ram":
-                out = forward_ram(model, imgs)
-            else:
-                out = forward_tag2text(model, class_idxs, imgs)
+            out = forward_ram(model, imgs)
             bs = imgs.shape[0]
             logits[pos:pos+bs, :] = out.cpu()
             pos += bs
@@ -443,29 +345,11 @@ if __name__ == "__main__":
     pred_tags = []
     for scores in logits.tolist():
         pred_tags.append([
-            taglist[i] for i, s in enumerate(scores) if s >= thresholds[i]
+            tag_list[i] for i, s in enumerate(scores) if s >= thresholds[i]
         ])
 
     # generate result file
     gen_pred_file(imglist, pred_tags, img_path, pred_file)
-    format_tags = _generate_tags(imglist, pred_tags, img_path)
-    _save_tags(args.record_path, vehicle_id, format_tags)
-
-    # evaluate and record
-    # mAP, APs = get_mAP(logits.numpy(), annot_file, taglist)
-    # CP, CR, Ps, Rs = get_PR(pred_file, annot_file, taglist)
-    #
-    # with open(ap_file, "w", encoding="utf-8") as f:
-    #     f.write("Tag,AP\n")
-    #     for tag, AP in zip(taglist, APs):
-    #         f.write(f"{tag},{AP*100.0:.2f}\n")
-    #
-    # with open(pr_file, "w", encoding="utf-8") as f:
-    #     f.write("Tag,Precision,Recall\n")
-    #     for tag, P, R in zip(taglist, Ps, Rs):
-    #         f.write(f"{tag},{P*100.0:.2f},{R*100.0:.2f}\n")
-    #
-    # with open(summary_file, "w", encoding="utf-8") as f:
-    #     print_write(f, f"mAP: {mAP*100.0}")
-    #     print_write(f, f"CP: {CP*100.0}")
-    #     print_write(f, f"CR: {CR*100.0}")
+    if args.save_tags:
+        format_tags = _generate_tags(imglist, pred_tags, img_path)
+        _save_tags(args.record_path, vehicle_id, format_tags)
