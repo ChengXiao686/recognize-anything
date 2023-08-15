@@ -74,6 +74,7 @@ def parse_args():
                        ))
     # miscellaneous
     parser.add_argument("--output-dir", type=str, default="./output")
+    # 64 is support for RTX 3090, 24GB
     parser.add_argument("--batch-size", type=int, default=64)
     parser.add_argument("--num-workers", type=int, default=4)
 
