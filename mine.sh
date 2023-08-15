@@ -10,4 +10,5 @@ python batch_infer_mine.py \
   --backbone swin_l \
   --checkpoint pretrained/ram_swin_large_14m.pth \
   --threshold-file ram/data/ram_tag_list_threshold.txt \
+  --save-tags True \
   --record-path $RECORD_PATH
