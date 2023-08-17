@@ -267,7 +267,7 @@ def _format_img_path(record_path: str):
     img_path = os.path.join(record_path, '_apollo_sensor_camera_upmiddle_right_60h_image_compressed')
     record_name = record_path.split('/')[-1]
     vehicle_id = record_name.split('_')[0]
-    return vehicle_id, img_path
+    return vehicle_id, record_name, img_path
 
 
 if __name__ == "__main__":
@@ -294,7 +294,7 @@ if __name__ == "__main__":
 
 
     # prepare data
-    vehicle_id, img_path = _format_img_path(args.record_path)
+    vehicle_id, record_name, img_path = _format_img_path(args.record_path)
     loader, info = load_dataset(
         img_path=img_path,
         input_size=args.input_size,
@@ -348,4 +348,6 @@ if __name__ == "__main__":
     gen_pred_file(imglist, pred_tags, img_path, pred_file)
     if args.save_tags:
         format_tags = _generate_tags(imglist, pred_tags, img_path)
-        _save_tags(args.record_path, vehicle_id, format_tags)
+        # 写入数据库的应该是通用的record_path
+        normal_record_path = os.path.join('yizhuang/raw_records', record_name)
+        _save_tags(normal_record_path, vehicle_id, format_tags)
