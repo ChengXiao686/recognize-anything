@@ -251,7 +251,9 @@ def _generate_tags(
     with open(os.path.join(img_root, 'timestamps'), 'r', encoding="utf-8") as f:
         for line in f.readlines():
             tokens = line.split(' ')
-            img2time[tokens[0]] = float(tokens[1])
+            # 下游数据库存储以ms为单位的long类型时间戳
+            timestamp = round(float(tokens[1]) * 1000)
+            img2time[tokens[0]] = timestamp
 
     format_tags = []
     for img_path, tag in zip(img_list, tags):
@@ -290,8 +292,6 @@ if __name__ == "__main__":
         ):
             print_write(f, f"{key}: {getattr(args, key)}")
         print_write(f, "****************")
-
-
 
     # prepare data
     vehicle_id, record_name, img_path = _format_img_path(args.record_path)
