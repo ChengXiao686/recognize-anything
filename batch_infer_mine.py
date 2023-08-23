@@ -295,6 +295,7 @@ if __name__ == "__main__":
 
     # prepare data
     vehicle_id, record_name, img_path = _format_img_path(args.record_path)
+    # input_size只能是384或224 将原始分辨率resize到384*384
     loader, info = load_dataset(
         img_path=img_path,
         input_size=args.input_size,
