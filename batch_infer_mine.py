@@ -45,16 +45,14 @@ def parse_args():
     parser.add_argument("--input-size",
                         type=int,
                         default=384)
-    parser.add_argument("--save-tags",
+    parser.add_argument("--savetags",
                         type=bool,
                         default=True,
                         help="save RAM tags to database.")
-    parser.add_argument("--is-prod",
+    parser.add_argument("--isprod",
                         type=bool,
                         default=False,
-                        help=(
-                            "database is prod or not."
-                        ))
+                        help="database is prod or not.")
     # threshold
     group = parser.add_mutually_exclusive_group()
     group.add_argument("--threshold",
@@ -299,7 +297,7 @@ if __name__ == "__main__":
             "record_path", "input_size",
             "threshold", "threshold_file",
             "output_dir", "batch_size", "num_workers",
-            "is_prod", "save_tags"
+            "isprod", "savetags"
         ):
             print_write(f, f"{key}: {getattr(args, key)}")
         print_write(f, "****************")
@@ -358,8 +356,8 @@ if __name__ == "__main__":
 
     # generate result file
     gen_pred_file(imglist, pred_tags, img_path, pred_file)
-    if args.save_tags:
+    if args.savetags:
         format_tags = _generate_tags(imglist, pred_tags, img_path)
         # 写入数据库的应该是通用的record_path
         normal_record_path = os.path.join('yizhuang/raw_records', record_name)
-        _save_tags(normal_record_path, vehicle_id, args.is_prod, format_tags)
+        _save_tags(normal_record_path, vehicle_id, args.isprod, format_tags)
