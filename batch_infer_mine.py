@@ -238,7 +238,7 @@ def _save_tags(record_path: str, vehicle_id: str, is_prod: bool, tags: list):
         'vehicle_id': vehicle_id,
         'frame_tags': tags
     }
-    print(f'json_payload: {json_payload}')
+    print(f'json_payload: {json_payload} is_prod: {is_prod}')
     if is_prod:
         url = 'http://ram-tag-index-service.autra.tech/write'
     else:
@@ -298,7 +298,8 @@ if __name__ == "__main__":
             "backbone", "checkpoint", "open_set",
             "record_path", "input_size",
             "threshold", "threshold_file",
-            "output_dir", "batch_size", "num_workers"
+            "output_dir", "batch_size", "num_workers",
+            "is_prod", "save_tags"
         ):
             print_write(f, f"{key}: {getattr(args, key)}")
         print_write(f, "****************")
