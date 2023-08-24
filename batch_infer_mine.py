@@ -45,11 +45,11 @@ def parse_args():
     parser.add_argument("--input-size",
                         type=int,
                         default=384)
-    parser.add_argument("--save-tags",
+    parser.add_argument("--save_tags",
                         type=bool,
                         default=True,
                         help="save RAM tags to database.")
-    parser.add_argument("--is-prod",
+    parser.add_argument("--is_prod",
                         type=bool,
                         default=False,
                         help=(
