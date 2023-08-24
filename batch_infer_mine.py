@@ -49,7 +49,7 @@ def parse_args():
                         type=bool,
                         default=True,
                         help="save RAM tags to database.")
-    parser.add_argument("--isprod",
+    parser.add_argument("--isdev",
                         type=bool,
                         default=False,
                         help="database is prod or not.")
@@ -230,17 +230,17 @@ def print_write(f: TextIO, s: str):
     f.write(s + "\n")
 
 
-def _save_tags(record_path: str, vehicle_id: str, is_prod: bool, tags: list):
+def _save_tags(record_path: str, vehicle_id: str, is_dev: bool, tags: list):
     json_payload = {
         'record_path': record_path,
         'vehicle_id': vehicle_id,
         'frame_tags': tags
     }
-    print(f'json_payload: {json_payload} is_prod: {is_prod}')
-    if is_prod:
-        url = 'http://ram-tag-index-service.autra.tech/write'
-    else:
+    print(f'json_payload: {json_payload} is_prod: {is_dev}')
+    if is_dev:
         url = 'http://ram-tag-index-service-dev.autra.tech/write'
+    else:
+        url = 'http://ram-tag-index-service.autra.tech/write'
     response = requests.post(
         url=url,
         json=json_payload,
@@ -297,7 +297,7 @@ if __name__ == "__main__":
             "record_path", "input_size",
             "threshold", "threshold_file",
             "output_dir", "batch_size", "num_workers",
-            "isprod", "savetags"
+            "isdev", "savetags"
         ):
             print_write(f, f"{key}: {getattr(args, key)}")
         print_write(f, "****************")
@@ -360,4 +360,4 @@ if __name__ == "__main__":
         format_tags = _generate_tags(imglist, pred_tags, img_path)
         # 写入数据库的应该是通用的record_path
         normal_record_path = os.path.join('yizhuang/raw_records', record_name)
-        _save_tags(normal_record_path, vehicle_id, args.isprod, format_tags)
+        _save_tags(normal_record_path, vehicle_id, args.isdev, format_tags)
