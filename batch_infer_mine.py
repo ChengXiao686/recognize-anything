@@ -49,6 +49,12 @@ def parse_args():
                         type=bool,
                         default=True,
                         help="save RAM tags to database.")
+    parser.add_argument("--is-prod",
+                        type=bool,
+                        default=False,
+                        help=(
+                            "database is prod or not."
+                        ))
     # threshold
     group = parser.add_mutually_exclusive_group()
     group.add_argument("--threshold",
@@ -226,15 +232,19 @@ def print_write(f: TextIO, s: str):
     f.write(s + "\n")
 
 
-def _save_tags(record_path: str, vehicle_id: str, tags: list):
+def _save_tags(record_path: str, vehicle_id: str, is_prod: bool, tags: list):
     json_payload = {
         'record_path': record_path,
         'vehicle_id': vehicle_id,
         'frame_tags': tags
     }
     print(f'json_payload: {json_payload}')
+    if is_prod:
+        url = 'http://ram-tag-index-service.autra.tech/write'
+    else:
+        url = 'http://ram-tag-index-service-dev.autra.tech/write'
     response = requests.post(
-        url="http://ram-tag-index-service-dev.autra.tech/write",
+        url=url,
         json=json_payload,
         timeout=3
     )
@@ -351,4 +361,4 @@ if __name__ == "__main__":
         format_tags = _generate_tags(imglist, pred_tags, img_path)
         # 写入数据库的应该是通用的record_path
         normal_record_path = os.path.join('yizhuang/raw_records', record_name)
-        _save_tags(normal_record_path, vehicle_id, format_tags)
+        _save_tags(normal_record_path, vehicle_id, args.is_prod, format_tags)
