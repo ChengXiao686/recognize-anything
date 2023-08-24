@@ -45,11 +45,11 @@ def parse_args():
     parser.add_argument("--input-size",
                         type=int,
                         default=384)
-    parser.add_argument("--savetags",
+    parser.add_argument("--save_tags",
                         type=bool,
                         default=True,
                         help="save RAM tags to database.")
-    parser.add_argument("--isdev",
+    parser.add_argument("--is_dev",
                         type=bool,
                         default=False,
                         help="database is prod or not.")
@@ -81,7 +81,7 @@ def parse_args():
     # 64 is support for RTX 3090, 24GB
     parser.add_argument("--batch-size", type=int, default=64)
     parser.add_argument("--num-workers", type=int, default=4)
-
+    # arg_parser 全部解析为字符串 parse bool: 赋值了就会是true 没赋值为false 空字符串为false
     args = parser.parse_args()
 
     # post process and validity check
@@ -236,7 +236,7 @@ def _save_tags(record_path: str, vehicle_id: str, is_dev: bool, tags: list):
         'vehicle_id': vehicle_id,
         'frame_tags': tags
     }
-    print(f'json_payload: {json_payload} is_prod: {is_dev}')
+    print(f'json_payload: {json_payload} is_dev: {is_dev}')
     if is_dev:
         url = 'http://ram-tag-index-service-dev.autra.tech/write'
     else:
@@ -297,7 +297,7 @@ if __name__ == "__main__":
             "record_path", "input_size",
             "threshold", "threshold_file",
             "output_dir", "batch_size", "num_workers",
-            "isdev", "savetags"
+            "is_dev", "save_tags"
         ):
             print_write(f, f"{key}: {getattr(args, key)}")
         print_write(f, "****************")
@@ -356,8 +356,8 @@ if __name__ == "__main__":
 
     # generate result file
     gen_pred_file(imglist, pred_tags, img_path, pred_file)
-    if args.savetags:
+    if args.save_tags:
         format_tags = _generate_tags(imglist, pred_tags, img_path)
         # 写入数据库的应该是通用的record_path
         normal_record_path = os.path.join('yizhuang/raw_records', record_name)
-        _save_tags(normal_record_path, vehicle_id, args.isdev, format_tags)
+        _save_tags(normal_record_path, vehicle_id, args.is_dev, format_tags)
