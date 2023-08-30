@@ -13,7 +13,7 @@ from torch.utils.data import DataLoader, Dataset
 from tqdm import tqdm
 
 from ram import get_transform
-from ram.models import ram, tag2text
+from ram.models import ram
 from ram.utils import build_openset_label_embedding
 
 device = "cuda" if torch.cuda.is_available() else "cpu"
