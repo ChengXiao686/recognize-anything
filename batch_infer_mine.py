@@ -274,7 +274,7 @@ def _generate_tags(
 
 
 def _format_img_path(record_path: str):
-    img_path = os.path.join(record_path, '_apollo_sensor_camera_upmiddle_right_60h_image_compressed')
+    img_path = os.path.join(record_path, '_apollo_sensor_camera_upmiddle_left_30h_image_compressed')
     record_name = record_path.split('/')[-1]
     vehicle_id = record_name.split('_')[0]
     return vehicle_id, record_name, img_path
