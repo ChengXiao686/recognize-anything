@@ -17,6 +17,7 @@ from ram.models import ram
 from ram.utils import build_openset_label_embedding
 
 device = "cuda" if torch.cuda.is_available() else "cpu"
+MODEL_TYPE = "ram"
 
 
 def parse_args():
@@ -234,7 +235,7 @@ def _save_tags(record_path: str, vehicle_id: str, is_dev: bool, tags: list):
     json_payload = {
         'record_path': record_path,
         'vehicle_id': vehicle_id,
-        'model_type': 'ram',
+        'model_type': MODEL_TYPE,
         'frame_tags': tags
     }
     print(f'json_payload: {json_payload} is_dev: {is_dev}')
