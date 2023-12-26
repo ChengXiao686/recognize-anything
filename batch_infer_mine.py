@@ -234,7 +234,8 @@ def _save_tags(record_path: str, vehicle_id: str, is_dev: bool, tags: list):
     json_payload = {
         'record_path': record_path,
         'vehicle_id': vehicle_id,
-        'frame_tags': tags + ['ram']
+        'model_type': 'ram',
+        'frame_tags': tags
     }
     print(f'json_payload: {json_payload} is_dev: {is_dev}')
     if is_dev:
